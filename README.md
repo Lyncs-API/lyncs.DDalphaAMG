@@ -11,6 +11,8 @@ This package provides a Python interface to DDalphaAMG.
 [DDalphaAMG] is a solver library for inverting Wilson Clover and Twisted Mass fermions from lattice QCD.
 It provides an implementation of an adaptive aggregation-based algebraic multigrid ($\alpha$AMG) method.
 
+[DDalphaAMG]: https://github.com/sbacchio/DDalphaAMG
+
 ## Installation
 
 **NOTE**: lyncs_DDalphaAMG requires a working MPI installation.

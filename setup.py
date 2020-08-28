@@ -18,7 +18,11 @@ setup(
     install_requires=[
         "lyncs-mpi",
         "lyncs-cppyy",
+        "lyncs-utils",
     ],
+    extras_require={
+        "test": ["pytest", "pytest-cov"],
+    },
     keywords=[
         "Lyncs",
         "DDalphaAMG",
