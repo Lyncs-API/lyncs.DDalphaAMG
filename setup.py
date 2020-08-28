@@ -1,26 +1,24 @@
+from lyncs_setuptools import setup, CMakeExtension
+
+flags = []
+
 try:
-    from lyncs_setuptools import setup, CMakeExtension
-    from lyncs_clime import __path__ as lime_path
-except:
-    print(
-        """
-    
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    Install first the requirements:
-    pip install -r requirements.txt
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    
-    """
-    )
+    from lyncs_clime import PATHS as lime_path
+
+    flags.append("-DLIME_PATH=%s" % lime_path[0])
+except ModuleNotFoundError:
+    pass
+
 
 setup(
     "lyncs_DDalphaAMG",
     exclude=["*.config"],
-    ext_modules=[
-        CMakeExtension("lyncs_DDalphaAMG.lib", ".", ["-DLIME_PATH=%s" % lime_path[0]])
-    ],
+    ext_modules=[CMakeExtension("lyncs_DDalphaAMG.lib", ".", flags)],
     data_files=[(".", ["config.py.in"])],
-    install_requires=["lyncs-mpi", "lyncs-cppyy", "lyncs-clime",],
+    install_requires=[
+        "lyncs-mpi",
+        "lyncs-cppyy",
+    ],
     keywords=[
         "Lyncs",
         "DDalphaAMG",
