@@ -16,7 +16,7 @@ from cppyy import nullptr
 from mpi4py import MPI
 from lyncs_mpi import default_comm
 from lyncs_cppyy import ll
-from lyncs.utils import factors, prime_factors
+from lyncs_utils import factors, prime_factors
 from . import lib
 
 
