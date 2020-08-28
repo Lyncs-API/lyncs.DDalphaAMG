@@ -10,10 +10,14 @@ from lyncs_cppyy import Lib
 from . import __path__
 from .config import WITH_CLIME
 
-libraries = ["libDDalphaAMG.so", libmpi,]
+libraries = [
+    "libDDalphaAMG.so",
+    libmpi,
+]
 
 if WITH_CLIME:
     from lyncs_clime import lib as libclime
+
     libraries.append(libclime)
 
 PATHS = list(__path__)
