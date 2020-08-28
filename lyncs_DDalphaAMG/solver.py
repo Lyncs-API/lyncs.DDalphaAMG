@@ -1,7 +1,7 @@
 """
 Interface to the DDalphaAMG solver library.
 
-Reference C header and documentation can be found in 
+Reference C header and documentation can be found in
 https://github.com/sbacchio/DDalphaAMG/blob/master/src/DDalphaAMG.h
 """
 
