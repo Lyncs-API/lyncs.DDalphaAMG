@@ -19,6 +19,9 @@ setup(
         "lyncs-mpi",
         "lyncs-cppyy",
     ],
+    extras_require={
+        "test": ["pytest", "pytest-cov"],
+    },
     keywords=[
         "Lyncs",
         "DDalphaAMG",
