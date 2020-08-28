@@ -41,7 +41,7 @@ class Solver:
     ):
         """
         Initialize a new DDalphaAMG solver class.
-        
+
         Parameters
         ----------
         global_lattice: int[4]
@@ -51,7 +51,7 @@ class Solver:
         procs: int[4]
             Number of processes per direction. The directions order is T, Z, Y, X.
         comm: MPI.Comm
-            It can be (a) MPI_COMM_WORLD, (b) A split of MPI_COMM_WORLD, 
+            It can be (a) MPI_COMM_WORLD, (b) A split of MPI_COMM_WORLD,
             (c) A cartesian communicator with 4 dims and number of processes in
             each directions equal to procs[4] and with proper bondary conditions.
         boundary_conditions: int or int[4]
@@ -268,17 +268,21 @@ def get_lattice_partitioning(global_lattice, block_lattice=None, procs=None, com
         assert (
             len(block_lattice) == 4
         ), "block_lattice must be a list of length 4 (T, Z, Y, X)"
-        assert all((i % j == 0 for i, j in zip(global_lattice, block_lattice))), (
-            "block_lattice must divide the global_lattice %s %% %s = 0"
-            % (global_lattice, block_lattice)
+        assert all(
+            (i % j == 0 for i, j in zip(global_lattice, block_lattice))
+        ), "block_lattice must divide the global_lattice %s %% %s = 0" % (
+            global_lattice,
+            block_lattice,
         )
         local_lattice = [i // j for i, j in zip(local_lattice, block_lattice)]
 
     if procs:
         assert len(procs) == 4, "procs must be a list of length 4 (T, Z, Y, X)"
-        assert numpy.prod(procs) == num_workers, (
-            "The number of workers (%d) does not match the given procs %s"
-            % (num_workers, procs)
+        assert (
+            numpy.prod(procs) == num_workers
+        ), "The number of workers (%d) does not match the given procs %s" % (
+            num_workers,
+            procs,
         )
         assert all(
             (i % j == 0 for i, j in zip(global_lattice, procs))
