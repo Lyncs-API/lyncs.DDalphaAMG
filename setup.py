@@ -18,6 +18,7 @@ setup(
         "lyncs-mpi",
         "lyncs-cppyy",
         "lyncs-utils",
+        "lyncs-clime",
     ],
     extras_require={
         "test": ["pytest", "pytest-cov"],
