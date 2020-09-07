@@ -18,6 +18,7 @@ from lyncs_mpi import default_comm
 from lyncs_cppyy import ll
 from lyncs_utils import factors, prime_factors
 from . import lib
+from .config import WITH_CLIME
 
 
 class Solver:
@@ -134,6 +135,27 @@ class Solver:
             lib.DDalphaAMG_finalize()
             Solver.inizialized = False
 
+    def check_status(self):
+        "Checks the current MG status"
+        assert self._status.success == 1
+
+    def cast_vector(self, vec):
+        "Casts a vector into a format suitable for the solver"
+        assert vec.shape == tuple(self.global_lattice) + (
+            4,
+            3,
+        ), f"""
+        Given array has not compatible shape.
+        array shape = {vec.shape}
+        expected shape = {tuple(self.global_lattice) + (4, 3)}
+        """
+        return numpy.array(vec, dtype="complex128", copy=False)
+
+    def new_vector(self):
+        "Creates a new vector suitable for the solver"
+        shape = tuple(self.global_lattice) + (4, 3)
+        return numpy.ndarray(shape, dtype="complex128")
+
     def update_parameters(self, **kwargs):
         "Updates multigrid parameters given in kwargs"
         for key, val in kwargs.items():
@@ -157,32 +179,49 @@ class Solver:
 
     def setup(self):
         "Runs the setup. If called again, the setup is re-run."
+        self.update_parameters()
         lib.DDalphaAMG_setup(self._status)
         self._setup = self._status.success
 
     def update_setup(self, iterations=1):
         "Runs more setup iterations."
+        self.update_parameters()
         lib.DDalphaAMG_update_setup(iterations, self._status)
         self._setup = self._status.success
 
+    @property
+    def setup_done(self):
+        "Returns if setup has been done"
+        return self._setup > 0
+
     def solve(self, rhs, tolerance=1e-9):
         "Solves D*x=rhs and returns x at the required tolerance."
-        assert rhs.shape == list(self.global_lattice) + [
-            4,
-            3,
-        ], """
-        Given array has not compatible shape.
-        array shape = %s
-        expected shape = %s
-        """ % (
-            rhs.shape,
-            list(self.global_lattice) + [4, 3],
-        )
+        rhs = self.cast_vector(rhs)
+        sol = self.new_vector()
 
-        rhs = numpy.array(rhs, dtype="complex128", copy=False)
-        sol = numpy.zeros_like(rhs)
+        if not self.setup_done:
+            self.setup()
+        self.update_parameters()
+
         lib.DDalphaAMG_solve(sol, rhs, tolerance, self._status)
+        self.check_status()
         return sol
+
+    def apply_operator(self, vec):
+        "Applies the Dirac operator on the given vector"
+        vec = self.cast_vector(vec)
+        res = self.new_vector()
+
+        if not self.setup_done:
+            self.setup()
+        self.update_parameters()
+
+        lib.DDalphaAMG_apply_operator(res, vec, self._status)
+        self.check_status()
+        return res
+
+    # alias for apply_operator
+    D = apply_operator
 
     def __dir__(self):
         keys = set(object.__dir__(self))
@@ -224,8 +263,10 @@ class Solver:
         filename = realpath(filename)
         assert fileformat in formats, "fileformat must be one of %s" % formats
         assert isfile(filename), "Filename %s does not exist" % filename
+        if fileformat == "lime":
+            assert WITH_CLIME, "clime not enabled"
 
-        shape = list(self.global_lattice) + [4, 3, 3]
+        shape = tuple(self.global_lattice) + (4, 3, 3)
         conf = numpy.zeros(shape, dtype="complex128")
         lib.DDalphaAMG_read_configuration(
             conf, filename, formats.index(fileformat), self._status
@@ -234,18 +275,15 @@ class Solver:
 
     def set_configuration(self, conf):
         "Sets the configuration to be used in the Dirac operator."
-        assert conf.shape == list(self.global_lattice) + [
+        assert conf.shape == tuple(self.global_lattice) + (
             4,
             3,
             3,
-        ], """
+        ), f"""
         Given array has not compatible shape.
-        array shape = %s
-        expected shape = %s
-        """ % (
-            conf.shape,
-            list(self.global_lattice) + [4, 3, 3],
-        )
+        array shape = {conf.shape}
+        expected shape = {tuple(self.global_lattice) + (4, 3, 3)}
+        """
 
         conf = numpy.array(conf, dtype="complex128", copy=False)
         lib.DDalphaAMG_set_configuration(conf, self._status)
