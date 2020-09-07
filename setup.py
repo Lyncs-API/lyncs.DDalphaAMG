@@ -7,8 +7,7 @@ try:
 
     flags.append("-DLIME_PATH=%s" % lime_path[0])
 except ModuleNotFoundError:
-    pass
-
+    assert False, "lyncs_clime is a requirement"
 
 setup(
     "lyncs_DDalphaAMG",
@@ -23,14 +22,4 @@ setup(
     extras_require={
         "test": ["pytest", "pytest-cov"],
     },
-    keywords=[
-        "Lyncs",
-        "DDalphaAMG",
-        "Lattice QCD",
-        "Multigrid",
-        "Wilson",
-        "Twisted-mass",
-        "Clover",
-        "Fermions",
-    ],
 )
