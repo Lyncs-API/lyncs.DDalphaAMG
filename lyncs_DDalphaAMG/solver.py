@@ -14,14 +14,14 @@ from os.path import isfile, realpath
 import numpy
 from cppyy import nullptr
 from mpi4py import MPI
-from lyncs_mpi import default_comm
+from lyncs_mpi import default_comm, ParallelClass
 from lyncs_cppyy import ll
 from lyncs_utils import factors, prime_factors
 from . import lib
 from .config import WITH_CLIME
 
 
-class Solver:
+class Solver(metaclass=ParallelClass):
     """
     The DDalphaAMG solver class.
     """
