@@ -10,24 +10,32 @@ __all__ = [
 ]
 
 import logging
-from os.path import isfile, realpath
+from os.path import isfile, realpath, abspath
 import numpy
 from cppyy import nullptr
 from mpi4py import MPI
-from lyncs_mpi import default_comm, ParallelClass
+from lyncs_mpi import default_comm, CartesianClass
+from lyncs_mpi.abc import Array, Global
 from lyncs_cppyy import ll
-from lyncs_utils import factors, prime_factors
+from lyncs_utils import factors, prime_factors, compute_property
 from . import lib
 from .config import WITH_CLIME
 
 
-class Solver(metaclass=ParallelClass):
+class Solver(metaclass=CartesianClass):
     """
     The DDalphaAMG solver class.
     """
 
     initialized = False
-    __slots__ = ["_init_params", "_run_params", "_status", "updated", "_setup"]
+    __slots__ = [
+        "_init_params",
+        "_run_params",
+        "_status",
+        "updated",
+        "_setup",
+        "_local_lattice",
+    ]
 
     def __init__(
         self,
@@ -135,26 +143,46 @@ class Solver(metaclass=ParallelClass):
             lib.DDalphaAMG_finalize()
             Solver.inizialized = False
 
+    @property
+    def global_lattice(self) -> Global:
+        return tuple(self._init_params.global_lattice)
+
+    @property
+    def procs(self) -> Global:
+        return tuple(self._init_params.procs)
+
+    @compute_property
+    def local_lattice(self) -> Global:
+        return tuple(
+            i // j for i, j in zip(tuple(self.global_lattice), tuple(self.procs))
+        )
+
     def check_status(self):
         "Checks the current MG status"
         assert self._status.success == 1
 
     def cast_vector(self, vec):
         "Casts a vector into a format suitable for the solver"
-        assert vec.shape == tuple(self.global_lattice) + (
+        assert vec.shape == tuple(self.local_lattice) + (
             4,
             3,
         ), f"""
         Given array has not compatible shape.
         array shape = {vec.shape}
-        expected shape = {tuple(self.global_lattice) + (4, 3)}
+        expected shape = {tuple(self.local_lattice) + (4, 3)}
         """
         return numpy.array(vec, dtype="complex128", copy=False)
 
-    def new_vector(self):
+    def zeros(self) -> Array:
         "Creates a new vector suitable for the solver"
-        shape = tuple(self.global_lattice) + (4, 3)
-        return numpy.ndarray(shape, dtype="complex128")
+        shape = tuple(self.local_lattice) + (4, 3)
+        return numpy.zeros(shape, dtype="complex128")
+
+    def random(self) -> Array:
+        "Creates a new random vector using DDalphaAMG function"
+        arr = self.zeros()
+        lib.DDalphaAMG_define_vector_rand(arr)
+        return arr
 
     def update_parameters(self, **kwargs):
         "Updates multigrid parameters given in kwargs"
@@ -175,7 +203,12 @@ class Solver(metaclass=ParallelClass):
         comm = MPI.Comm()
         comm_ptr = ll.cast["MPI_Comm*"](MPI._addressof(comm))
         ll.assign(comm_ptr, lib.DDalphaAMG_get_communicator())
-        return comm
+        return MPI.Cartcomm(comm)
+
+    @property
+    def coords(self):
+        "Returns the coordinates of the MPI communicator"
+        return tuple(self.comm.Get_topo()[2])
 
     def setup(self):
         "Runs the setup. If called again, the setup is re-run."
@@ -190,14 +223,14 @@ class Solver(metaclass=ParallelClass):
         self._setup = self._status.success
 
     @property
-    def setup_done(self):
+    def setup_done(self) -> Global:
         "Returns if setup has been done"
         return self._setup > 0
 
-    def solve(self, rhs, tolerance=1e-9):
+    def solve(self, rhs, tolerance=1e-9) -> Array:
         "Solves D*x=rhs and returns x at the required tolerance."
         rhs = self.cast_vector(rhs)
-        sol = self.new_vector()
+        sol = self.zeros()
 
         if not self.setup_done:
             self.setup()
@@ -207,10 +240,10 @@ class Solver(metaclass=ParallelClass):
         self.check_status()
         return sol
 
-    def apply_operator(self, vec):
+    def apply_operator(self, vec) -> Array:
         "Applies the Dirac operator on the given vector"
         vec = self.cast_vector(vec)
-        res = self.new_vector()
+        res = self.zeros()
 
         if not self.setup_done:
             self.setup()
@@ -229,10 +262,6 @@ class Solver(metaclass=ParallelClass):
             if not key.startswith("_"):
                 keys.add(key)
         return sorted(keys)
-
-    def __getattribute__(self, key):
-        assert Solver.inizialized, "The DDalphaAMG library has been finalized!"
-        return object.__getattribute__(self, key)
 
     def __getattr__(self, key):
         if key in Solver.__slots__:
@@ -257,7 +286,7 @@ class Solver(metaclass=ParallelClass):
             ), "An initialization parameter cannot be changed."
             raise
 
-    def read_configuration(self, filename, fileformat="lime"):
+    def read_configuration(self, filename: abspath, fileformat="lime") -> Array:
         "Reads configuration from file"
         formats = ["DDalphaAMG", "lime"]
         filename = realpath(filename)
@@ -266,23 +295,23 @@ class Solver(metaclass=ParallelClass):
         if fileformat == "lime":
             assert WITH_CLIME, "clime not enabled"
 
-        shape = tuple(self.global_lattice) + (4, 3, 3)
+        shape = tuple(self.local_lattice) + (4, 3, 3)
         conf = numpy.zeros(shape, dtype="complex128")
         lib.DDalphaAMG_read_configuration(
             conf, filename, formats.index(fileformat), self._status
         )
         return conf
 
-    def set_configuration(self, conf):
+    def set_configuration(self, conf) -> Global:
         "Sets the configuration to be used in the Dirac operator."
-        assert conf.shape == tuple(self.global_lattice) + (
+        assert conf.shape == tuple(self.local_lattice) + (
             4,
             3,
             3,
         ), f"""
         Given array has not compatible shape.
         array shape = {conf.shape}
-        expected shape = {tuple(self.global_lattice) + (4, 3, 3)}
+        expected shape = {tuple(self.local_lattice) + (4, 3, 3)}
         """
 
         conf = numpy.array(conf, dtype="complex128", copy=False)
@@ -297,6 +326,8 @@ def get_lattice_partitioning(global_lattice, block_lattice=None, procs=None, com
     assert (
         len(global_lattice) == 4
     ), "global_lattice must be a list of length 4 (T, Z, Y, X)"
+
+    # TODO: check that comm is CartComm, PERIODIC, correct dims and correct procs
 
     comm = comm or default_comm()
     num_workers = comm.size
@@ -327,6 +358,7 @@ def get_lattice_partitioning(global_lattice, block_lattice=None, procs=None, com
         ), "procs must divide the global_lattice %s %% %s = 0" % (global_lattice, procs)
         local_lattice = [i // j for i, j in zip(local_lattice, procs)]
     else:
+        # TODO: get procs from cartcomm
         procs = [1] * 4
         for factor in reversed(list(prime_factors(num_workers))):
             for local in reversed(sorted(local_lattice)):
