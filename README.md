@@ -74,4 +74,3 @@ solver = Solver(global_lattice=[4, 4, 4, 4],
 		
 # Continues as above
 ```
-
