@@ -5,7 +5,7 @@
 [![license](https://img.shields.io/github/license/Lyncs-API/lyncs.DDalphaAMG?logo=github&logoColor=white)](https://github.com/Lyncs-API/lyncs.DDalphaAMG/blob/master/LICENSE)
 [![build & test](https://img.shields.io/github/workflow/status/Lyncs-API/lyncs.DDalphaAMG/build%20&%20test?logo=github&logoColor=white)](https://github.com/Lyncs-API/lyncs.DDalphaAMG/actions)
 [![codecov](https://img.shields.io/codecov/c/github/Lyncs-API/lyncs.DDalphaAMG?logo=codecov&logoColor=white)](https://codecov.io/gh/Lyncs-API/lyncs.DDalphaAMG)
-[![pylint](https://img.shields.io/badge/pylint%20score-9.0%2F10-green?logo=python&logoColor=white)](http://pylint.pycqa.org/)
+[![pylint](https://img.shields.io/badge/pylint%20score-8.9%2F10-yellowgreen?logo=python&logoColor=white)](http://pylint.pycqa.org/)
 [![black](https://img.shields.io/badge/code%20style-black-000000.svg?logo=codefactor&logoColor=white)](https://github.com/ambv/black)
 
 This package provides a Python interface to DDalphaAMG.
