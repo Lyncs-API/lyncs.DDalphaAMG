@@ -16,7 +16,7 @@ from cppyy import nullptr
 from mpi4py import MPI
 from lyncs_mpi import default_comm, CartesianClass
 from lyncs_mpi.abc import Array, Global
-from lyncs_cppyy.ll import cast, to_pointer
+from lyncs_cppyy.ll import cast, to_pointer, addressof
 from lyncs_utils import factors, prime_factors, compute_property
 from . import lib
 from .config import WITH_CLIME
@@ -202,7 +202,8 @@ class Solver(metaclass=CartesianClass):
         "Returns the MPI communicator used by the library."
         comm = MPI.Comm()
         comm_ptr = to_pointer(MPI._addressof(comm), "MPI_Comm*")
-        comm_ptr[0] = lib.DDalphaAMG_get_communicator()
+        lib.MPI_Comm_free(comm_ptr)
+        lib.DDalphaAMG_get_communicator(comm_ptr)
         return MPI.Cartcomm(comm)
 
     @property
