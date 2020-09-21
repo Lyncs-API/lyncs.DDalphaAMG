@@ -1,0 +1,30 @@
+diff --git a/src/DDalphaAMG.h b/src/DDalphaAMG.h
+index d9ecc07..980fff9 100644
+--- a/src/DDalphaAMG.h
++++ b/src/DDalphaAMG.h
+@@ -289,7 +289,7 @@
+   /**
+    ** Extra - Returns the MPI communicator used by the library. 
+    **/
+-  MPI_Comm DDalphaAMG_get_communicator( void );
++  void DDalphaAMG_get_communicator( MPI_Comm *comm );
+ 
+   /**
+    ** Extra - Read configuration and read/write vector
+diff --git a/src/DDalphaAMG_interface.c b/src/DDalphaAMG_interface.c
+index 2bc3f82..66ddd78 100644
+--- a/src/DDalphaAMG_interface.c
++++ b/src/DDalphaAMG_interface.c
+@@ -1798,10 +1798,8 @@ void DDalphaAMG_finalize( void ) {
+   
+ }
+ 
+-MPI_Comm DDalphaAMG_get_communicator( void ){
+-  MPI_Comm comm;
+-  MPI_Comm_dup( g.comm_cart, &comm);
+-  return comm;
++void DDalphaAMG_get_communicator( MPI_Comm* comm ){
++  MPI_Comm_dup( g.comm_cart, comm);
+ }
+ 
+ void DDalphaAMG_read_configuration( double *gauge_field, char *filename, int format, DDalphaAMG_status *mg_status ) {
