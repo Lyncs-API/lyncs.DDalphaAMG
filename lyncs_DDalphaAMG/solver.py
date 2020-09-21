@@ -10,6 +10,7 @@ __all__ = [
 ]
 
 import logging
+from array import array
 from os.path import isfile, realpath, abspath
 import numpy
 from cppyy import nullptr
@@ -46,6 +47,8 @@ class Solver(metaclass=CartesianClass):
         boundary_conditions=-1,
         number_of_levels=1,
         number_openmp_threads=1,
+        init_file=None,
+        rnd_seeds=None,
         **kwargs,
     ):
         """
@@ -62,15 +65,19 @@ class Solver(metaclass=CartesianClass):
         comm: MPI.Comm
             It can be (a) MPI_COMM_WORLD, (b) A split of MPI_COMM_WORLD,
             (c) A cartesian communicator with 4 dims and number of processes in
-            each directions equal to procs[4] and with proper bondary conditions.
+            each directions equal to procs[4] and with proper boundary conditions.
         boundary_conditions: int or int[4]
             It can be +1 (periodic), -1 (anti-periodic) or four floats (twisted)
             i.e. a phase proportional to M_PI * [T, Z, Y, X] will multiplies
             the links in the respective directions.
         number_of_levels: int
-            Number of levels for the multigrid, from 1 (no MG) to 4 (max number of levels)
+            Number of levels for the multi-grid, from 1 (no MG) to 4 (max number of levels)
         number_openmp_threads: int
             Number of openmp threads, from 1 to omp_get_num_threads()
+        init_file: str
+            Input file in DDalphaAMG format
+        rnd_seeds: list(int)
+            An int per MPI process (list of length comm.size)
         """
         self._init_params = lib.DDalphaAMG_init()
         self._run_params = lib.DDalphaAMG_parameters()
@@ -122,8 +129,14 @@ class Solver(metaclass=CartesianClass):
         self._init_params.mu = kwargs.pop("mu", 0)
         self._init_params.csw = kwargs.pop("csw", 0)
 
-        # self._init_params.init_file = nullptr
-        # self._init_params.rnd_seeds = nullptr
+        if init_file:
+            self._init_params.init_file = init_file
+        if rnd_seeds:
+            if not isiterable(rnd_seeds, int):
+                raise TypeError("rnd_seeds needs to be a list of int")
+            if not len(rnd_seeds) == comm.size:
+                raise ValueError("rnd_seeds must be of length comm.size")
+            self._init_params.rnd_seeds = array("I", rnd_seeds)
 
         if Solver.initialized:
             self.__del__()
@@ -153,22 +166,27 @@ class Solver(metaclass=CartesianClass):
 
     @property
     def nlevels(self) -> Global:
+        "Number of levels of the solver"
         return self.number_of_levels
 
     @property
     def global_lattice(self) -> Global:
+        "Global lattice size of the solver"
         return tuple(self._init_params.global_lattice)
 
     @property
     def block_lattice(self) -> Global:
+        "Block lattice size of the solver"
         return tuple(self._init_params.block_lattice)
 
     @property
     def procs(self) -> Global:
+        "Number of MPI processes per direction"
         return tuple(self._init_params.procs)
 
     @compute_property
     def local_lattice(self) -> Global:
+        "Local lattice size of the solver"
         return tuple(
             i // j for i, j in zip(tuple(self.global_lattice), tuple(self.procs))
         )
@@ -201,7 +219,7 @@ class Solver(metaclass=CartesianClass):
         return arr
 
     def update_parameters(self, **kwargs):
-        "Updates multigrid parameters given in kwargs"
+        "Updates multi-grid parameters given in kwargs"
         for key, val in kwargs.items():
             setattr(self, key, val)
         if not self.updated:
@@ -347,7 +365,7 @@ class Solver(metaclass=CartesianClass):
 
 def get_lattice_partitioning(global_lattice, block_lattice=None, procs=None, comm=None):
     """
-    Checks or dermines the block_lattice and procs based on the given global_lattice and comm.
+    Checks or determines the block_lattice and procs based on the given global_lattice and comm.
     """
     if not len(global_lattice) == 4:
         raise ValueError("global_lattice must be a list of length 4 (T, Z, Y, X)")
@@ -416,7 +434,7 @@ def get_lattice_partitioning(global_lattice, block_lattice=None, procs=None, com
                     procs[idx] *= factor
                     factor = 1
                     break
-            if not factor == 1:
+            if factor != 1:
                 raise RuntimeError(
                     """
                 Could not create the list of procs:

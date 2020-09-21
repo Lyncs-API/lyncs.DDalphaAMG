@@ -103,6 +103,18 @@ def test_parallel():
     assert allclose(solver.D(sol), vec)
 
 
+def test_rnd_seeds():
+    solver = Solver(
+        global_lattice=[4, 4, 4, 4],
+        rnd_seeds=[
+            1234,
+        ],
+    )
+    # rnd_seeds do not really work... everytime different result
+    # TODO: fix!
+    assert not np.isclose(solver.random().sum(), 0)
+
+
 def test_errors():
     solver = Solver(
         global_lattice=[4, 4, 4, 4],
