@@ -17,7 +17,7 @@ from mpi4py import MPI
 from lyncs_mpi import default_comm, CartesianClass
 from lyncs_mpi.abc import Array, Global
 from lyncs_cppyy.ll import cast, to_pointer, addressof
-from lyncs_utils import factors, prime_factors, compute_property
+from lyncs_utils import factors, prime_factors, compute_property, isiterable
 from . import lib
 from .config import WITH_CLIME
 
@@ -75,7 +75,7 @@ class Solver(metaclass=CartesianClass):
         self._init_params = lib.DDalphaAMG_init()
         self._run_params = lib.DDalphaAMG_parameters()
         self._status = lib.DDalphaAMG_status()
-        self._setup = 0
+        self._setup = -1
         self.updated = True
 
         global_lattice, block_lattice, procs, comm = get_lattice_partitioning(
@@ -91,14 +91,17 @@ class Solver(metaclass=CartesianClass):
         elif boundary_conditions == -1:
             self._init_params.bc = 1
         else:
-            assert (
-                hasattr(boundary_conditions, "__len__")
+            if (
+                not isiterable(boundary_conditions, (int, float))
                 and len(boundary_conditions) == 4
-            ), """
-            boundary_conditions can be +1 (periodic), -1 (anti-periodic) or four floats
-            (twisted), i.e. a phase proportional to M_PI * [T, Z, Y, X] multiplies links
-            in the respective directions.
-            """
+            ):
+                raise TypeError(
+                    """
+                boundary_conditions can be +1 (periodic), -1 (anti-periodic) or four floats
+                (twisted), i.e. a phase proportional to M_PI * [T, Z, Y, X] multiplies links
+                in the respective directions.
+                """
+                )
             self._init_params.bc = 2
 
         for i in range(4):
@@ -135,6 +138,11 @@ class Solver(metaclass=CartesianClass):
         Solver.inizialized = True
 
         kwargs.setdefault("print", 1)
+        kwargs.setdefault("mixed_precision", 2)
+        kwargs.setdefault("method", 2)
+        kwargs.setdefault(
+            "interpolation", 0 if self.nlevels == 1 else self._run_params.interpolation
+        )
         if kwargs:
             self.update_parameters(**kwargs)
 
@@ -144,8 +152,16 @@ class Solver(metaclass=CartesianClass):
             Solver.inizialized = False
 
     @property
+    def nlevels(self) -> Global:
+        return self.number_of_levels
+
+    @property
     def global_lattice(self) -> Global:
         return tuple(self._init_params.global_lattice)
+
+    @property
+    def block_lattice(self) -> Global:
+        return tuple(self._init_params.block_lattice)
 
     @property
     def procs(self) -> Global:
@@ -187,14 +203,19 @@ class Solver(metaclass=CartesianClass):
     def update_parameters(self, **kwargs):
         "Updates multigrid parameters given in kwargs"
         for key, val in kwargs.items():
-            setattr(self._run_params, key, val)
+            setattr(self, key, val)
         if not self.updated:
             lib.DDalphaAMG_update_parameters(self._run_params, self._status)
             self.updated = True
 
     @property
     def setup_status(self):
-        "Number of setup iterations performed. If 0, then no setup has been done."
+        """
+        Number of setup iterations performed.
+          If -1, then no configuration has been loaded,
+          if  0, then no setup has been done,
+          if  n, then n setup iterations have been performed.
+        """
         return self._setup
 
     @property
@@ -213,6 +234,8 @@ class Solver(metaclass=CartesianClass):
 
     def setup(self):
         "Runs the setup. If called again, the setup is re-run."
+        if self.setup_status < 0:
+            raise RuntimeError("No configuration loaded. See set_configuration")
         self.update_parameters()
         lib.DDalphaAMG_setup(self._status)
         self._setup = self._status.success
@@ -226,7 +249,7 @@ class Solver(metaclass=CartesianClass):
     @property
     def setup_done(self) -> Global:
         "Returns if setup has been done"
-        return self._setup > 0
+        return self.setup_status > 0
 
     def solve(self, rhs, tolerance=1e-9) -> Array:
         "Solves D*x=rhs and returns x at the required tolerance."
@@ -278,14 +301,15 @@ class Solver(metaclass=CartesianClass):
             object.__setattr__(self, key, val)
             return
 
-        try:
+        if hasattr(self._run_params, key):
             setattr(self._run_params, key, val)
             self.updated = False
-        except AttributeError:
-            assert not hasattr(
-                self._init_params, key
-            ), "An initialization parameter cannot be changed."
-            raise
+            return
+
+        if hasattr(self._init_params, key):
+            raise RuntimeError("An initialization parameter cannot be changed.")
+
+        raise AttributeError(f"{key} is not a runtime parameter")
 
     def read_configuration(self, filename: abspath, fileformat="lime") -> Array:
         "Reads configuration from file"
@@ -317,6 +341,7 @@ class Solver(metaclass=CartesianClass):
 
         conf = numpy.array(conf, dtype="complex128", copy=False)
         lib.DDalphaAMG_set_configuration(conf, self._status)
+        self._setup = 0
         return self._status.info
 
 
@@ -324,42 +349,64 @@ def get_lattice_partitioning(global_lattice, block_lattice=None, procs=None, com
     """
     Checks or dermines the block_lattice and procs based on the given global_lattice and comm.
     """
-    assert (
-        len(global_lattice) == 4
-    ), "global_lattice must be a list of length 4 (T, Z, Y, X)"
-
-    # TODO: check that comm is CartComm, PERIODIC, correct dims and correct procs
-
-    comm = comm or default_comm()
-    num_workers = comm.size
+    if not len(global_lattice) == 4:
+        raise ValueError("global_lattice must be a list of length 4 (T, Z, Y, X)")
 
     local_lattice = list(global_lattice)
     if block_lattice:
-        assert (
-            len(block_lattice) == 4
-        ), "block_lattice must be a list of length 4 (T, Z, Y, X)"
-        assert all(
-            (i % j == 0 for i, j in zip(global_lattice, block_lattice))
-        ), "block_lattice must divide the global_lattice %s %% %s = 0" % (
-            global_lattice,
-            block_lattice,
-        )
+        if not len(block_lattice) == 4:
+            raise ValueError("block_lattice must be a list of length 4 (T, Z, Y, X)")
+        if not all((i % j == 0 for i, j in zip(global_lattice, block_lattice))):
+            raise ValueError(
+                "block_lattice must divide the global_lattice %s %% %s = 0"
+                % (
+                    global_lattice,
+                    block_lattice,
+                )
+            )
         local_lattice = [i // j for i, j in zip(local_lattice, block_lattice)]
 
     if procs:
-        assert len(procs) == 4, "procs must be a list of length 4 (T, Z, Y, X)"
-        assert (
-            numpy.prod(procs) == num_workers
-        ), "The number of workers (%d) does not match the given procs %s" % (
-            num_workers,
-            procs,
-        )
-        assert all(
-            (i % j == 0 for i, j in zip(global_lattice, procs))
-        ), "procs must divide the global_lattice %s %% %s = 0" % (global_lattice, procs)
+        if not len(procs) == 4:
+            raise ValueError("procs must be a list of length 4 (T, Z, Y, X)")
+
+    if comm is not None:
+        if not isinstance(comm, MPI.Comm):
+            raise TypeError(f"Expected an MPI.Comm but got {type(comm)}")
+
+        if isinstance(comm, MPI.Cartcomm):
+            if not comm.dim == 4:
+                raise ValueError("Expected a Cartesian comm of size 4")
+            if not comm.periods == [1, 1, 1, 1]:
+                raise ValueError(
+                    "Expected a Cartesian with periodic boundary condiitons"
+                )
+            if procs:
+                if not list(procs) == comm.dims:
+                    raise ValueError(f"procs={procs} and comm.dims={comm.dims} differ")
+            else:
+                procs = comm.dims
+    else:
+        comm = default_comm()
+
+    num_workers = comm.size
+
+    if procs:
+        if not numpy.prod(procs) == num_workers:
+            raise ValueError(
+                "The number of workers (%d) does not match the given procs %s"
+                % (
+                    num_workers,
+                    procs,
+                )
+            )
+        if not all((i % j == 0 for i, j in zip(local_lattice, procs))):
+            raise ValueError(
+                "procs must divide the local_lattice %s %% %s = 0"
+                % (local_lattice, procs)
+            )
         local_lattice = [i // j for i, j in zip(local_lattice, procs)]
     else:
-        # TODO: get procs from cartcomm
         procs = [1] * 4
         for factor in reversed(list(prime_factors(num_workers))):
             for local in reversed(sorted(local_lattice)):
@@ -369,18 +416,20 @@ def get_lattice_partitioning(global_lattice, block_lattice=None, procs=None, com
                     procs[idx] *= factor
                     factor = 1
                     break
-            assert (
-                factor == 1
-            ), """
-            Could not create the list of procs:
-            num_workers = %d
-            factors = %s
-            global_lattice = %s
-            """ % (
-                num_workers,
-                factors,
-                global_lattice,
-            )
+            if not factor == 1:
+                raise RuntimeError(
+                    """
+                Could not create the list of procs:
+                num_workers = %d
+                factors = %s
+                global_lattice = %s
+                """
+                    % (
+                        num_workers,
+                        factors,
+                        global_lattice,
+                    )
+                )
         logging.info("Determined procs is %s for %d workers", procs, num_workers)
 
     if not block_lattice:
@@ -391,8 +440,8 @@ def get_lattice_partitioning(global_lattice, block_lattice=None, procs=None, com
                 idx = local_lattice.index(local)
                 local_lattice[idx] //= 2
                 break
-        # An optimal block size if 4. Here we find the closest factor to 4
-        optimal = 4
+        # An optimal block size is 4. Here we find the closest factor to 4
+        optimal = 4 if min(global_lattice) > 4 else 2
         for i, local in enumerate(local_lattice):
             get_ratio = lambda i: i / optimal if i >= optimal else optimal / i
             best = get_ratio(1)
