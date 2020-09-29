@@ -50,6 +50,7 @@ def test_serial():
     plaq = solver.set_configuration(conf)
     assert solver.block_lattice == (2, 2, 2, 2)
     assert np.isclose(plaq, 0.13324460568521923)
+    assert np.allclose(solver.D(sol), vec)
     assert np.allclose(solver.solve(vec), sol)
 
 
@@ -130,24 +131,30 @@ def test_errors():
         solver.setup()
 
     with raises(TypeError):
-        solver = Solver(global_lattice=[4, 4, 4, 4], boundary_conditions="periodic")
+        Solver(global_lattice=[4, 4, 4, 4], boundary_conditions="periodic")
 
     with raises(ValueError):
-        solver = Solver(
+        Solver(
             global_lattice=[4, 4, 4],
         )
 
     with raises(ValueError):
-        solver = Solver(global_lattice=[4, 4, 4, 4], block_lattice=[2, 2])
+        Solver(global_lattice=[4, 4, 4, 4], block_lattice=[2, 2])
 
     with raises(ValueError):
-        solver = Solver(global_lattice=[4, 4, 4, 4], block_lattice=[3, 3, 3, 3])
+        Solver(global_lattice=[4, 4, 4, 4], block_lattice=[3, 3, 3, 3])
 
     with raises(TypeError):
-        solver = Solver(
+        Solver(
             global_lattice=[4, 4, 4, 4],
             comm="foo",
         )
 
     with raises(ValueError):
-        solver = Solver(global_lattice=[4, 4, 4, 4], procs=[2, 2])
+        Solver(global_lattice=[4, 4, 4, 4], procs=[2, 2])
+
+    with raises(TypeError):
+        Solver(global_lattice=[4, 4, 4, 4], rnd_seeds=10)
+
+    with raises(TypeError):
+        Solver(global_lattice=[4, 4, 4, 4], rnd_seeds=[1, 2])
