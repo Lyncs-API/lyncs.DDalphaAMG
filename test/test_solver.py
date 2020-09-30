@@ -2,6 +2,7 @@ from pytest import raises
 from lyncs_mpi import Client
 from lyncs_DDalphaAMG import Solver
 import numpy as np
+from mpi4py import MPI
 from distributed import wait
 from dask.array import allclose
 
@@ -30,6 +31,8 @@ def test_serial():
         kappa=0.15,
     )
 
+    assert isinstance(Solver.comm.fget(solver), MPI.Cartcomm)
+    assert isinstance(solver.comm, MPI.Cartcomm)
     assert solver.coords == (0, 0, 0, 0)
 
     conf = solver.read_configuration("test/conf.random")

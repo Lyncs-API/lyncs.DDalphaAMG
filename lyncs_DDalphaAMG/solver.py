@@ -260,7 +260,7 @@ class Solver(metaclass=CartesianClass):
     @property
     def coords(self):
         "Returns the coordinates of the MPI communicator"
-        return tuple(self.comm.Get_topo()[2])
+        return tuple(self.comm.coords)
 
     def setup(self):
         "Runs the setup. If called again, the setup is re-run."
