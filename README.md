@@ -19,30 +19,30 @@ It provides an implementation of an adaptive aggregation-based algebraic multigr
 **NOTE**: lyncs_DDalphaAMG requires a working MPI installation.
 This can be installed via `apt-get`:
 
-```
+```bash
 sudo apt-get install libopenmpi-dev openmpi-bin
 ```
 
 OR using `conda`:
 
-```
+```bash
 conda install -c anaconda mpi4py
 ```
 
 The package can be installed via `pip`:
 
-```
+```bash
 pip install [--user] lyncs_DDalphaAMG
 ```
 
 ## Documentation
 
 The functions provided by the [DDalphaAMG API](https://github.com/sbacchio/DDalphaAMG/blob/master/src/DDalphaAMG.h) are available in the Solver class `lyncs_DDalphaAMG.Solver`.
-Please, use `help(Solver)` to see an overview.
+Please, use `help(Solver)` to see an overview of the functionalities.
 In the following we present some examples on the usage of the package.
 
 
-```
+```python
 from lyncs_DDalphaAMG import Solver
 
 # Creating the solver
@@ -54,12 +54,18 @@ conf = solver.read_configuration("test/conf.random")
 plaq = solver.set_configuration(conf)
 print("Plaquette:", plaq)
 
-# Computing the solution of vector
+# Computing the solution of a random vector
 vector = solver.random()
 result = solver.solve(vector)
 ```
 
-```
+The above example is run locally and all the fields are numpy arrays.
+
+The Solver class is also Dask compatible and by giving a distributed communicator,
+as in the following example, the solver instance is now distributed remotely on
+the dask workers and all the fields are Dask arrays.
+
+```python
 from lyncs_mpi import Client
 
 # Creating a client with 4 workers
