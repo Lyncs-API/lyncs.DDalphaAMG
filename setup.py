@@ -21,6 +21,6 @@ setup(
         "lyncs-clime",
     ],
     extras_require={
-        "test": ["pytest", "pytest-cov"],
+        "test": ["pytest", "pytest-cov", "pytest-benchmark"],
     },
 )

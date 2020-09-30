@@ -16,7 +16,7 @@ import numpy
 from cppyy import nullptr
 from mpi4py import MPI
 from lyncs_mpi import default_comm, CartesianClass
-from lyncs_mpi.abc import Array, Global
+from lyncs_mpi.abc import Array, Global, Constant
 from lyncs_cppyy.ll import cast, to_pointer, addressof
 from lyncs_utils import factors, prime_factors, compute_property, isiterable
 from . import lib
@@ -71,7 +71,7 @@ class Solver(metaclass=CartesianClass):
             i.e. a phase proportional to M_PI * [T, Z, Y, X] will multiplies
             the links in the respective directions.
         number_of_levels: int
-            Number of levels for the multi-grid, from 1 (no MG) to 4 (max number of levels)
+            Number of levels for the multi-grid, from 1 (no MG) to 4 (maximum number of levels)
         number_openmp_threads: int
             Number of openmp threads, from 1 to omp_get_num_threads()
         init_file: str
@@ -170,7 +170,7 @@ class Solver(metaclass=CartesianClass):
         return self.number_of_levels
 
     @property
-    def global_lattice(self) -> Global:
+    def global_lattice(self) -> Constant:
         "Global lattice size of the solver"
         return tuple(self._init_params.global_lattice)
 
@@ -180,12 +180,12 @@ class Solver(metaclass=CartesianClass):
         return tuple(self._init_params.block_lattice)
 
     @property
-    def procs(self) -> Global:
+    def procs(self) -> Constant:
         "Number of MPI processes per direction"
         return tuple(self._init_params.procs)
 
     @compute_property
-    def local_lattice(self) -> Global:
+    def local_lattice(self) -> Constant:
         "Local lattice size of the solver"
         return tuple(
             i // j for i, j in zip(tuple(self.global_lattice), tuple(self.procs))
@@ -207,12 +207,24 @@ class Solver(metaclass=CartesianClass):
         """
         return numpy.array(vec, dtype="complex128", copy=False)
 
-    def zeros(self) -> Array:
+    def zeros(
+        self,
+    ) -> Array(
+        shape=(lambda self: self.global_lattice + (4, 3)),
+        chunks=(lambda self: self.local_lattice + (4, 3)),
+        dtype="complex128",
+    ):
         "Creates a new vector suitable for the solver"
         shape = tuple(self.local_lattice) + (4, 3)
         return numpy.zeros(shape, dtype="complex128")
 
-    def random(self) -> Array:
+    def random(
+        self,
+    ) -> Array(
+        shape=(lambda self: self.global_lattice + (4, 3)),
+        chunks=(lambda self: self.local_lattice + (4, 3)),
+        dtype="complex128",
+    ):
         "Creates a new random vector using DDalphaAMG function"
         arr = self.zeros()
         lib.DDalphaAMG_define_vector_rand(arr)
@@ -248,7 +260,7 @@ class Solver(metaclass=CartesianClass):
     @property
     def coords(self):
         "Returns the coordinates of the MPI communicator"
-        return tuple(self.comm.Get_topo()[2])
+        return tuple(self.comm.coords)
 
     def setup(self):
         "Runs the setup. If called again, the setup is re-run."
@@ -269,7 +281,13 @@ class Solver(metaclass=CartesianClass):
         "Returns if setup has been done"
         return self.setup_status > 0
 
-    def solve(self, rhs, tolerance=1e-9) -> Array:
+    def solve(
+        self, rhs, tolerance=1e-9
+    ) -> Array(
+        shape=(lambda self: self.global_lattice + (4, 3)),
+        chunks=(lambda self: self.local_lattice + (4, 3)),
+        dtype="complex128",
+    ):
         "Solves D*x=rhs and returns x at the required tolerance."
         rhs = self.cast_vector(rhs)
         sol = self.zeros()
@@ -282,7 +300,13 @@ class Solver(metaclass=CartesianClass):
         self.check_status()
         return sol
 
-    def apply_operator(self, vec) -> Array:
+    def apply_operator(
+        self, vec
+    ) -> Array(
+        shape=(lambda self: self.global_lattice + (4, 3)),
+        chunks=(lambda self: self.local_lattice + (4, 3)),
+        dtype="complex128",
+    ):
         "Applies the Dirac operator on the given vector"
         vec = self.cast_vector(vec)
         res = self.zeros()
@@ -329,7 +353,13 @@ class Solver(metaclass=CartesianClass):
 
         raise AttributeError(f"{key} is not a runtime parameter")
 
-    def read_configuration(self, filename: abspath, fileformat="lime") -> Array:
+    def read_configuration(
+        self, filename: abspath, fileformat="lime"
+    ) -> Array(
+        shape=(lambda self: self.global_lattice + (4, 3, 3)),
+        chunks=(lambda self: self.local_lattice + (4, 3, 3)),
+        dtype="complex128",
+    ):
         "Reads configuration from file"
         formats = ["DDalphaAMG", "lime"]
         filename = realpath(filename)
