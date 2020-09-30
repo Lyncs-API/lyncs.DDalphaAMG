@@ -156,5 +156,5 @@ def test_errors():
     with raises(TypeError):
         Solver(global_lattice=[4, 4, 4, 4], rnd_seeds=10)
 
-    with raises(TypeError):
+    with raises(ValueError):
         Solver(global_lattice=[4, 4, 4, 4], rnd_seeds=[1, 2])
