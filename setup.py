@@ -19,6 +19,7 @@ setup(
         "lyncs-cppyy",
         "lyncs-utils",
         "lyncs-clime",
+        "lyncs-setuptool",
     ],
     extras_require={
         "test": ["pytest", "pytest-cov", "pytest-benchmark"],
