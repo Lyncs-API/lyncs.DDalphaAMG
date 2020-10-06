@@ -125,7 +125,7 @@ jobs:
         LRZ_USERNAME: ${{ secrets.lrz_username }}
         LRZ_PASSWORD: ${{ secrets.lrz_password }}
       run: |
-        source .lrz_script/openrc.sh
+        source .lrz_scripts/openrc.sh
         openstack stack create -t .lrz_script/debian.yml github-stack --wait
         openstack stack output show -f value github-stack public_ip
         export PUBLIC_IP=$(openstack stack output show -f value github-stack public_ip | tail -n 1)
