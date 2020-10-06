@@ -1,0 +1,41 @@
+heat_template_version: queens
+description: Launch a server
+ 
+resources:
+  volume:
+    type: OS::Cinder::Volume
+    properties:
+      name: github_volume
+      image: Debian-10-buster
+      size: 20
+ 
+  server:
+    type: OS::Nova::Server
+    depends_on: volume
+    properties:
+      name: github_server
+      flavor: lrz.small
+      key_name: github
+      block_device_mapping_v2:
+        - volume_id: { get_resource: volume }
+      networks:
+        - network: internet
+        
+  floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: { list_join: ['', [internet, '_pool']] }
+ 
+  floating_ip_association:
+    type: OS::Neutron::FloatingIPAssociation
+    depends_on:
+      - server
+      - floating_ip
+    properties:
+      floatingip_id: { get_resource: floating_ip }
+      port_id: { get_attr: [server, addresses, internet, 0, port] }
+ 
+outputs:
+  public_ip:
+    description: The public ip of the server
+    value: { get_attr: [floating_ip, floating_ip_address] }

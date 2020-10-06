@@ -85,7 +85,7 @@ jobs:
 
   clean-run:
     
-    needs: build-n-publish
+    # needs: build-n-publish
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -111,3 +111,34 @@ jobs:
     - name: Run tests
       run: |
         pytest -v --import-mode=importlib
+
+  lrz-benchmarks:
+    needs: build-n-publish
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Start VM
+      env:
+        LRZ_PROJECT_ID: ${{ secrets.lrz_project_id }}
+        LRZ_USERNAME: ${{ secrets.lrz_username }}
+        LRZ_PASSWORD: ${{ secrets.lrz_password }}
+      run: |
+        source .lrz_script/openrc.sh
+        openstack stack create -t .lrz_script/debian.yml github-stack --wait
+        openstack stack output show -f value github-stack public_ip
+        export PUBLIC_IP=$(openstack stack output show -f value github-stack public_ip | tail -n 1)
+        echo "Public IP is ${PUBLIC_IP}"
+
+   - name: Execute via ssh
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ env.PUBLIC_IP }}
+        username: debian
+        key: ${{ secrets.lrz_ssh_key }}
+        script_stop: true
+        script: |
+          whoami
+          pwd
+
+    - name: Stop VM
+      run: openstack stack delete github-stack --wait
