@@ -85,7 +85,7 @@ jobs:
 
   clean-run:
     
-    # needs: build-n-publish
+    needs: build-n-publish
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -113,7 +113,7 @@ jobs:
         pytest -v --import-mode=importlib
 
   lrz-benchmarks:
-    needs: build-n-publish
+    # needs: build-n-publish
     runs-on: ubuntu-latest
 
     steps:
