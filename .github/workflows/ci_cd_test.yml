@@ -144,9 +144,12 @@ jobs:
         username: debian
         key: ${{ secrets.lrz_ssh_key }}
         script_stop: true
+        timeout: 1m
+        debug: true
         script: |
           whoami
           pwd
+          ls -al
 
     - name: Stop VM
       if: ${{ always() }}
