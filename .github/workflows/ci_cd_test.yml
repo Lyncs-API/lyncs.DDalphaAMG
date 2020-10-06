@@ -150,6 +150,7 @@ jobs:
 
     - name: Stop VM
       if: ${{ always() }}
+      env:
         LRZ_PROJECT_ID: ${{ secrets.lrz_project_id }}
         LRZ_USERNAME: ${{ secrets.lrz_username }}
         LRZ_PASSWORD: ${{ secrets.lrz_password }}
