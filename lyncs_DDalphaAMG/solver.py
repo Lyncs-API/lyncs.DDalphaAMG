@@ -5,6 +5,8 @@ Reference C header and documentation can be found in
 https://github.com/sbacchio/DDalphaAMG/blob/master/src/DDalphaAMG.h
 """
 
+# pylint: disable=import-outside-toplevel
+
 __all__ = [
     "Solver",
 ]
@@ -14,7 +16,6 @@ from array import array
 from os.path import isfile, realpath, abspath
 import numpy
 from cppyy import nullptr
-from mpi4py import MPI
 from lyncs_mpi import default_comm, CartesianClass
 from lyncs_mpi.abc import Array, Global, Constant
 from lyncs_cppyy.ll import cast, to_pointer, addressof
@@ -79,6 +80,8 @@ class Solver(metaclass=CartesianClass):
         rnd_seeds: list(int)
             An int per MPI process (list of length comm.size)
         """
+        from mpi4py import MPI
+
         self._init_params = lib.DDalphaAMG_init()
         self._run_params = lib.DDalphaAMG_parameters()
         self._status = lib.DDalphaAMG_status()
@@ -251,6 +254,8 @@ class Solver(metaclass=CartesianClass):
     @property
     def comm(self):
         "Returns the MPI communicator used by the library."
+        from mpi4py import MPI
+
         comm = MPI.Comm()
         comm_ptr = to_pointer(MPI._addressof(comm), "MPI_Comm*")
         lib.MPI_Comm_free(comm_ptr)
@@ -419,6 +424,8 @@ def get_lattice_partitioning(global_lattice, block_lattice=None, procs=None, com
             raise ValueError("procs must be a list of length 4 (T, Z, Y, X)")
 
     if comm is not None:
+        from mpi4py import MPI
+
         if not isinstance(comm, MPI.Comm):
             raise TypeError(f"Expected an MPI.Comm but got {type(comm)}")
 

@@ -161,3 +161,36 @@ def test_errors():
 
     with raises(ValueError):
         Solver(global_lattice=[4, 4, 4, 4], rnd_seeds=[1, 2])
+
+
+def test_data_movement():
+    client = Client(4)
+    procs = [2, 1, 1, 1]
+    comm1 = client.create_comm(2).create_cart(procs)
+    comm2 = client.create_comm(2, exclude=comm1.workers).create_cart(procs)
+
+    solver1 = Solver(
+        global_lattice=[4, 4, 4, 4],
+        block_lattice=[2, 2, 2, 2],
+        procs=procs,
+        kappa=0.1,
+        comm=comm1,
+    )
+    solver2 = Solver(
+        global_lattice=[4, 4, 4, 4],
+        block_lattice=[2, 2, 2, 2],
+        procs=procs,
+        kappa=0.1,
+        comm=comm2,
+    )
+
+    conf = solver1.read_configuration("test/conf.random")
+    plaq1 = solver1.set_configuration(conf)
+    assert np.isclose(plaq1, 0.13324460568521923)
+
+    plaq2 = solver2.set_configuration(conf)
+    assert np.isclose(plaq1, plaq2)
+
+    vec = solver1.random()
+    sol = solver1.solve(vec)
+    assert allclose(solver2.D(sol), vec)
