@@ -129,7 +129,7 @@ jobs:
         export PUBLIC_IP=$(openstack stack output show -f value github-stack public_ip | tail -n 1)
         echo "Public IP is ${PUBLIC_IP}"
 
-   - name: Execute via ssh
+    - name: Execute via ssh
       uses: appleboy/ssh-action@master
       with:
         host: ${{ env.PUBLIC_IP }}
