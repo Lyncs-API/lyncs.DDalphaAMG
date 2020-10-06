@@ -124,6 +124,7 @@ jobs:
         sudo apt-get install python3-openstackclient python3-heatclient
 
     - name: Start VM
+      id: start-vm
       env:
         LRZ_PROJECT_ID: ${{ secrets.lrz_project_id }}
         LRZ_USERNAME: ${{ secrets.lrz_username }}
@@ -133,13 +134,13 @@ jobs:
         openstack stack create -t .lrz_scripts/debian.yml github-stack --wait
         openstack stack output show -f value github-stack public_ip
         PUBLIC_IP=$(openstack stack output show -f value github-stack public_ip | tail -n 1)
-        echo "public_ip=${PUBLIC_IP}" >> $GITHUB_ENV
+        echo "::set-output name=public-ip::${PUBLIC_IP}"
         echo "Public IP is ${PUBLIC_IP}"
 
     - name: Execute via ssh
       uses: appleboy/ssh-action@master
       with:
-        host: ${{ env.PUBLIC_IP }}
+        host: ${{ steps.start-vm.outputs.public-ip }}
         username: debian
         key: ${{ secrets.lrz_ssh_key }}
         script_stop: true
@@ -149,4 +150,9 @@ jobs:
 
     - name: Stop VM
       if: ${{ always() }}
-      run: openstack stack delete github-stack --wait
+        LRZ_PROJECT_ID: ${{ secrets.lrz_project_id }}
+        LRZ_USERNAME: ${{ secrets.lrz_username }}
+        LRZ_PASSWORD: ${{ secrets.lrz_password }}
+      run: |
+        source .lrz_scripts/openrc.sh
+        openstack stack delete github-stack --wait -y
